@@ -74,7 +74,7 @@ public class DungeonTileRenderer : MonoBehaviour
     /// </summary>
     public void UpdateVisibility(Vector2Int playerGridPosition, int sightRadius)
     {
-        if (tileRenderers == null || generator.Map == null)
+        if (tileRenderers == null || revealedTiles == null || generator.Map == null)
         {
             return;
         }
@@ -87,13 +87,19 @@ public class DungeonTileRenderer : MonoBehaviour
         {
             for (int y = 0; y < height; y++)
             {
+                SpriteRenderer renderer = tileRenderers[x, y];
+                if (renderer == null)
+                {
+                    continue;
+                }
+
                 if (revealedTiles[x, y])
                 {
-                    tileRenderers[x, y].color = Color.Lerp(unrevealedColor, BaseColorForType(generator.Map[x, y]), exploredBrightness);
+                    renderer.color = Color.Lerp(unrevealedColor, BaseColorForType(generator.Map[x, y]), exploredBrightness);
                 }
                 else
                 {
-                    tileRenderers[x, y].color = unrevealedColor;
+                    renderer.color = unrevealedColor;
                 }
             }
         }
@@ -116,8 +122,14 @@ public class DungeonTileRenderer : MonoBehaviour
                     continue;
                 }
 
+                SpriteRenderer renderer = tileRenderers[tilePosition.x, tilePosition.y];
+                if (renderer == null)
+                {
+                    continue;
+                }
+
                 revealedTiles[tilePosition.x, tilePosition.y] = true;
-                tileRenderers[tilePosition.x, tilePosition.y].color = BaseColorForType(generator.Map[tilePosition.x, tilePosition.y]);
+                renderer.color = BaseColorForType(generator.Map[tilePosition.x, tilePosition.y]);
             }
         }
     }
@@ -146,9 +158,20 @@ public class DungeonTileRenderer : MonoBehaviour
 
     private void ClearExistingTiles()
     {
+        tileRenderers = null;
+        revealedTiles = null;
+
         for (int i = transform.childCount - 1; i >= 0; i--)
         {
-            DestroyImmediate(transform.GetChild(i).gameObject);
+            GameObject child = transform.GetChild(i).gameObject;
+            if (Application.isPlaying)
+            {
+                Destroy(child);
+            }
+            else
+            {
+                DestroyImmediate(child);
+            }
         }
     }
 
