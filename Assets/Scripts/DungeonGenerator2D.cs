@@ -1,9 +1,3 @@
-diff --git a/Assets/Scripts/DungeonGenerator2D.cs b/Assets/Scripts/DungeonGenerator2D.cs
-new file mode 100644
-index 0000000000000000000000000000000000000000..52408abe8d592e06a53d068d141874f5a0036a33
---- /dev/null
-+++ b/Assets/Scripts/DungeonGenerator2D.cs
-@@ -0,0 +1,290 @@
 +using System.Collections.Generic;
 +using UnityEngine;
 +
