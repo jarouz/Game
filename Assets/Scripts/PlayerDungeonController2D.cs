@@ -4,6 +4,7 @@ using UnityEngine;
 /// Handles tile-by-tile WASD movement for a dungeon player and updates local field of view.
 /// </summary>
 [RequireComponent(typeof(SpriteRenderer))]
+[RequireComponent(typeof(PlayerStats))]
 public class PlayerDungeonController2D : MonoBehaviour
 {
     [SerializeField] private DungeonGenerator2D generator;
@@ -17,11 +18,14 @@ public class PlayerDungeonController2D : MonoBehaviour
     public Vector2Int GridPosition { get; private set; }
 
     private SpriteRenderer spriteRenderer;
+    private PlayerStats playerStats;
+    private DungeonItemSpawner2D itemSpawner;
     private Sprite playerSprite;
 
     private void Start()
     {
         spriteRenderer = GetComponent<SpriteRenderer>();
+        playerStats = GetComponent<PlayerStats>();
         ResolveReferences();
 
         if (generator == null || tileRenderer == null)
@@ -38,10 +42,17 @@ public class PlayerDungeonController2D : MonoBehaviour
         }
 
         tileRenderer.BuildVisualMap();
+
+        if (itemSpawner != null)
+        {
+            itemSpawner.SpawnItems();
+        }
+
         SetupPlayerVisual();
         GridPosition = generator.GetPlayerSpawnPosition();
         SnapToGrid();
         UpdateVisibleTiles();
+        TryCollectCurrentTileItem();
     }
 
     private void Update()
@@ -69,6 +80,7 @@ public class PlayerDungeonController2D : MonoBehaviour
         GridPosition = targetPosition;
         SnapToGrid();
         UpdateVisibleTiles();
+        TryCollectCurrentTileItem();
     }
 
     /// <summary>
@@ -98,6 +110,18 @@ public class PlayerDungeonController2D : MonoBehaviour
         }
 
         return Vector2Int.zero;
+    }
+
+
+    /// <summary>
+    /// Picks up any item placed on the tile the player just entered.
+    /// </summary>
+    private void TryCollectCurrentTileItem()
+    {
+        if (itemSpawner != null && playerStats != null)
+        {
+            itemSpawner.TryCollectItem(GridPosition, playerStats);
+        }
     }
 
     /// <summary>
@@ -143,6 +167,11 @@ public class PlayerDungeonController2D : MonoBehaviour
         if (tileRenderer == null)
         {
             tileRenderer = FindObjectOfType<DungeonTileRenderer>();
+        }
+
+        if (itemSpawner == null)
+        {
+            itemSpawner = FindObjectOfType<DungeonItemSpawner2D>();
         }
     }
 
