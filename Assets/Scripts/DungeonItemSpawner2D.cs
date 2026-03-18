@@ -10,8 +10,11 @@ public class DungeonItemSpawner2D : MonoBehaviour
     [SerializeField] private DungeonTileRenderer tileRenderer;
     [SerializeField] private int itemCount = 6;
 
+    private const string PickupsRootName = "DungeonPickups";
+
     private readonly Dictionary<Vector2Int, DungeonMapItemPickup> pickupsByPosition = new Dictionary<Vector2Int, DungeonMapItemPickup>();
     private Sprite placeholderSprite;
+    private Transform pickupsRoot;
 
     /// <summary>
     /// Spawns collectible items on random floor or door tiles.
@@ -26,6 +29,7 @@ public class DungeonItemSpawner2D : MonoBehaviour
             return;
         }
 
+        EnsurePickupsRoot();
         ClearExistingItems();
 
         if (placeholderSprite == null)
@@ -34,12 +38,14 @@ public class DungeonItemSpawner2D : MonoBehaviour
         }
 
         List<Vector2Int> walkableTiles = new List<Vector2Int>();
+        Vector2Int playerSpawn = generator.GetPlayerSpawnPosition();
+
         for (int x = 0; x < generator.Width; x++)
         {
             for (int y = 0; y < generator.Height; y++)
             {
                 Vector2Int position = new Vector2Int(x, y);
-                if (generator.IsWalkable(position) && position != generator.GetPlayerSpawnPosition())
+                if (generator.IsWalkable(position) && position != playerSpawn)
                 {
                     walkableTiles.Add(position);
                 }
@@ -55,11 +61,28 @@ public class DungeonItemSpawner2D : MonoBehaviour
 
             InventoryItem item = CreateRandomItem();
             GameObject pickupObject = new GameObject();
-            pickupObject.transform.SetParent(transform, false);
+            pickupObject.transform.SetParent(pickupsRoot, false);
 
             DungeonMapItemPickup pickup = pickupObject.AddComponent<DungeonMapItemPickup>();
             pickup.Initialize(item, position, tileRenderer.GridToWorld(position), placeholderSprite, tileRenderer.TileSize);
             pickupsByPosition[position] = pickup;
+        }
+    }
+
+    /// <summary>
+    /// Updates whether pickups are visible based on the current fog-of-war state.
+    /// </summary>
+    public void UpdatePickupVisibility(DungeonTileRenderer renderer, Vector2Int playerPosition, int sightRadius)
+    {
+        foreach (KeyValuePair<Vector2Int, DungeonMapItemPickup> entry in pickupsByPosition)
+        {
+            if (entry.Value == null)
+            {
+                continue;
+            }
+
+            bool visible = renderer.IsCurrentlyVisible(entry.Key, playerPosition, sightRadius);
+            entry.Value.SetVisible(visible);
         }
     }
 
@@ -124,6 +147,16 @@ public class DungeonItemSpawner2D : MonoBehaviour
         }
     }
 
+    private void EnsurePickupsRoot()
+    {
+        if (pickupsRoot == null)
+        {
+            Transform existingRoot = transform.Find(PickupsRootName);
+            pickupsRoot = existingRoot != null ? existingRoot : new GameObject(PickupsRootName).transform;
+            pickupsRoot.SetParent(transform, false);
+        }
+    }
+
     private void ResolveReferences()
     {
         if (generator == null)
@@ -140,9 +173,23 @@ public class DungeonItemSpawner2D : MonoBehaviour
     private void ClearExistingItems()
     {
         pickupsByPosition.Clear();
-        for (int i = transform.childCount - 1; i >= 0; i--)
+
+        if (pickupsRoot == null)
         {
-            DestroyImmediate(transform.GetChild(i).gameObject);
+            return;
+        }
+
+        for (int i = pickupsRoot.childCount - 1; i >= 0; i--)
+        {
+            GameObject child = pickupsRoot.GetChild(i).gameObject;
+            if (Application.isPlaying)
+            {
+                Destroy(child);
+            }
+            else
+            {
+                DestroyImmediate(child);
+            }
         }
     }
 

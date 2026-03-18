@@ -17,15 +17,18 @@ public class DungeonTileRenderer : MonoBehaviour
     [SerializeField] private Color unrevealedColor = Color.black;
     [SerializeField] private float exploredBrightness = 0.35f;
 
+    private const string TilesRootName = "DungeonTiles";
+
     private Sprite placeholderSprite;
     private SpriteRenderer[,] tileRenderers;
     private bool[,] revealedTiles;
+    private Transform tilesRoot;
+    private DungeonItemSpawner2D itemSpawner;
 
     /// <summary>
     /// Tile size is exposed so the player controller can align movement to the visual grid.
     /// </summary>
     public float TileSize => tileSize;
-
 
     /// <summary>
     /// Creates tile GameObjects for each cell in the dungeon array and hides them behind fog.
@@ -33,13 +36,14 @@ public class DungeonTileRenderer : MonoBehaviour
     [ContextMenu("Build Visual Map")]
     public void BuildVisualMap()
     {
-        ResolveGenerator();
+        ResolveReferences();
         if (generator == null)
         {
             Debug.LogError("DungeonTileRenderer requires a DungeonGenerator2D reference.");
             return;
         }
 
+        EnsureTilesRoot();
         ClearExistingTiles();
 
         if (placeholderSprite == null)
@@ -74,7 +78,7 @@ public class DungeonTileRenderer : MonoBehaviour
     /// </summary>
     public void UpdateVisibility(Vector2Int playerGridPosition, int sightRadius)
     {
-        if (tileRenderers == null || revealedTiles == null || generator.Map == null)
+        if (tileRenderers == null || revealedTiles == null || generator == null || generator.Map == null)
         {
             return;
         }
@@ -93,14 +97,9 @@ public class DungeonTileRenderer : MonoBehaviour
                     continue;
                 }
 
-                if (revealedTiles[x, y])
-                {
-                    renderer.color = Color.Lerp(unrevealedColor, BaseColorForType(generator.Map[x, y]), exploredBrightness);
-                }
-                else
-                {
-                    renderer.color = unrevealedColor;
-                }
+                renderer.color = revealedTiles[x, y]
+                    ? Color.Lerp(unrevealedColor, BaseColorForType(generator.Map[x, y]), exploredBrightness)
+                    : unrevealedColor;
             }
         }
 
@@ -110,14 +109,7 @@ public class DungeonTileRenderer : MonoBehaviour
             for (int dy = -sightRadius; dy <= sightRadius; dy++)
             {
                 Vector2Int tilePosition = new Vector2Int(playerGridPosition.x + dx, playerGridPosition.y + dy);
-
                 if (!IsInside(tilePosition))
-                {
-                    continue;
-                }
-
-                // A radius of 1 reveals a compact 3x3 area around the player.
-                if (Mathf.Abs(dx) > sightRadius || Mathf.Abs(dy) > sightRadius)
                 {
                     continue;
                 }
@@ -132,6 +124,29 @@ public class DungeonTileRenderer : MonoBehaviour
                 renderer.color = BaseColorForType(generator.Map[tilePosition.x, tilePosition.y]);
             }
         }
+
+        if (itemSpawner != null)
+        {
+            itemSpawner.UpdatePickupVisibility(this, playerGridPosition, sightRadius);
+        }
+    }
+
+    /// <summary>
+    /// Returns true if the tile has ever been revealed by the player.
+    /// </summary>
+    public bool HasBeenRevealed(Vector2Int gridPosition)
+    {
+        return revealedTiles != null && IsInside(gridPosition) && revealedTiles[gridPosition.x, gridPosition.y];
+    }
+
+    /// <summary>
+    /// Returns true if the tile is inside the player's current field of view.
+    /// </summary>
+    public bool IsCurrentlyVisible(Vector2Int gridPosition, Vector2Int viewerPosition, int sightRadius)
+    {
+        return IsInside(gridPosition)
+            && Mathf.Abs(gridPosition.x - viewerPosition.x) <= sightRadius
+            && Mathf.Abs(gridPosition.y - viewerPosition.y) <= sightRadius;
     }
 
     /// <summary>
@@ -161,7 +176,7 @@ public class DungeonTileRenderer : MonoBehaviour
     private SpriteRenderer CreateTile(int x, int y, DungeonGenerator2D.TileType type)
     {
         GameObject tile = new GameObject($"Tile_{x}_{y}_{type}");
-        tile.transform.SetParent(transform, false);
+        tile.transform.SetParent(tilesRoot, false);
         tile.transform.position = GridToWorld(new Vector2Int(x, y));
         tile.transform.localScale = Vector3.one * tileSize;
 
@@ -172,14 +187,29 @@ public class DungeonTileRenderer : MonoBehaviour
         return renderer;
     }
 
+    private void EnsureTilesRoot()
+    {
+        if (tilesRoot == null)
+        {
+            Transform existingRoot = transform.Find(TilesRootName);
+            tilesRoot = existingRoot != null ? existingRoot : new GameObject(TilesRootName).transform;
+            tilesRoot.SetParent(transform, false);
+        }
+    }
+
     private void ClearExistingTiles()
     {
         tileRenderers = null;
         revealedTiles = null;
 
-        for (int i = transform.childCount - 1; i >= 0; i--)
+        if (tilesRoot == null)
         {
-            GameObject child = transform.GetChild(i).gameObject;
+            return;
+        }
+
+        for (int i = tilesRoot.childCount - 1; i >= 0; i--)
+        {
+            GameObject child = tilesRoot.GetChild(i).gameObject;
             if (Application.isPlaying)
             {
                 Destroy(child);
@@ -191,17 +221,22 @@ public class DungeonTileRenderer : MonoBehaviour
         }
     }
 
-    private void ResolveGenerator()
+    private void ResolveReferences()
     {
         if (generator == null)
         {
             generator = FindObjectOfType<DungeonGenerator2D>();
         }
+
+        if (itemSpawner == null)
+        {
+            itemSpawner = FindObjectOfType<DungeonItemSpawner2D>();
+        }
     }
 
     private bool IsInside(Vector2Int point)
     {
-        return point.x >= 0 && point.x < generator.Width && point.y >= 0 && point.y < generator.Height;
+        return generator != null && point.x >= 0 && point.x < generator.Width && point.y >= 0 && point.y < generator.Height;
     }
 
     private Color BaseColorForType(DungeonGenerator2D.TileType type)

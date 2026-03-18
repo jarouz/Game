@@ -26,4 +26,15 @@ public class DungeonMapItemPickup : MonoBehaviour
         transform.localScale = Vector3.one * tileSize * 0.6f;
         gameObject.name = "Pickup_" + item.ItemName.Replace(' ', '_');
     }
+
+    /// <summary>
+    /// Shows or hides the pickup based on fog-of-war visibility.
+    /// </summary>
+    public void SetVisible(bool visible)
+    {
+        if (spriteRenderer != null)
+        {
+            spriteRenderer.enabled = visible;
+        }
+    }
 }
