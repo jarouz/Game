@@ -58,7 +58,7 @@ public class DungeonItemSpawner2D : MonoBehaviour
             pickupObject.transform.SetParent(transform, false);
 
             DungeonMapItemPickup pickup = pickupObject.AddComponent<DungeonMapItemPickup>();
-            pickup.Initialize(item, position, placeholderSprite, tileRenderer.TileSize);
+            pickup.Initialize(item, position, tileRenderer.GridToWorld(position), placeholderSprite, tileRenderer.TileSize);
             pickupsByPosition[position] = pickup;
         }
     }

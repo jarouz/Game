@@ -139,7 +139,23 @@ public class DungeonTileRenderer : MonoBehaviour
     /// </summary>
     public Vector3 GridToWorld(Vector2Int gridPosition)
     {
-        return new Vector3(gridPosition.x * tileSize, gridPosition.y * tileSize, 0f);
+        Vector2 originOffset = GetMapOriginOffset();
+        return new Vector3(originOffset.x + gridPosition.x * tileSize, originOffset.y + gridPosition.y * tileSize, 0f);
+    }
+
+    /// <summary>
+    /// Offsets the dungeon so it is centered near the world origin instead of starting far in the positive quadrant.
+    /// </summary>
+    private Vector2 GetMapOriginOffset()
+    {
+        if (generator == null)
+        {
+            return Vector2.zero;
+        }
+
+        float xOffset = -((generator.Width - 1) * tileSize) * 0.5f;
+        float yOffset = -((generator.Height - 1) * tileSize) * 0.5f;
+        return new Vector2(xOffset, yOffset);
     }
 
     private SpriteRenderer CreateTile(int x, int y, DungeonGenerator2D.TileType type)

@@ -13,7 +13,7 @@ public class DungeonMapItemPickup : MonoBehaviour
     /// <summary>
     /// Initializes the pickup visual and data.
     /// </summary>
-    public void Initialize(InventoryItem item, Vector2Int gridPosition, Sprite sprite, float tileSize)
+    public void Initialize(InventoryItem item, Vector2Int gridPosition, Vector3 worldPosition, Sprite sprite, float tileSize)
     {
         Item = item;
         GridPosition = gridPosition;
@@ -22,7 +22,7 @@ public class DungeonMapItemPickup : MonoBehaviour
         spriteRenderer.color = item.WorldColor;
         spriteRenderer.sortingOrder = 5;
 
-        transform.position = new Vector3(gridPosition.x * tileSize, gridPosition.y * tileSize, -0.05f);
+        transform.position = new Vector3(worldPosition.x, worldPosition.y, -0.05f);
         transform.localScale = Vector3.one * tileSize * 0.6f;
         gameObject.name = "Pickup_" + item.ItemName.Replace(' ', '_');
     }
