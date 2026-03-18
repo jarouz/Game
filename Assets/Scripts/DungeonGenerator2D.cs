@@ -18,29 +18,19 @@ public class DungeonGenerator2D : MonoBehaviour
     }
 
     [Header("Map Size")]
-    [SerializeField] private int mapWidth = 40;
-    [SerializeField] private int mapHeight = 28;
+    [SerializeField] private int mapWidth = 80;
+    [SerializeField] private int mapHeight = 50;
 
     [Header("Room Settings")]
-    [SerializeField] private int roomCount = 10;
-    [SerializeField] private Vector2Int roomSizeMin = new Vector2Int(4, 4);
-    [SerializeField] private Vector2Int roomSizeMax = new Vector2Int(8, 8);
+    [SerializeField] private int roomCount = 12;
+    [SerializeField] private Vector2Int roomSizeMin = new Vector2Int(5, 5);
+    [SerializeField] private Vector2Int roomSizeMax = new Vector2Int(12, 10);
     [SerializeField] private int roomPadding = 1;
 
     /// <summary>
     /// Public read-only access to the generated map.
     /// </summary>
     public TileType[,] Map { get; private set; }
-
-    /// <summary>
-    /// Width helper so other scripts can read map dimensions without touching serialized fields.
-    /// </summary>
-    public int Width => mapWidth;
-
-    /// <summary>
-    /// Height helper so other scripts can read map dimensions without touching serialized fields.
-    /// </summary>
-    public int Height => mapHeight;
 
     /// <summary>
     /// Internal room description used during generation.
@@ -53,6 +43,13 @@ public class DungeonGenerator2D : MonoBehaviour
 
     private readonly List<Room> rooms = new List<Room>();
 
+    /// <summary>
+    /// Generate a dungeon when the scene starts.
+    /// </summary>
+    private void Start()
+    {
+        GenerateDungeon();
+    }
 
     /// <summary>
     /// Creates a fresh dungeon map.
@@ -78,7 +75,7 @@ public class DungeonGenerator2D : MonoBehaviour
 
         // Attempt to place the requested number of rooms.
         // We allow extra attempts so generation still works when space is tight.
-        int maxAttempts = roomCount * 12;
+        int maxAttempts = roomCount * 10;
         int attempts = 0;
 
         while (rooms.Count < roomCount && attempts < maxAttempts)
@@ -98,62 +95,17 @@ public class DungeonGenerator2D : MonoBehaviour
             }
 
             CarveRoom(newRoom);
-
-            if (rooms.Count > 0)
-            {
-                Room previous = rooms[rooms.Count - 1];
-                CarveCorridor(previous.Center, newRoom.Center);
-                PlaceDoor(previous.Center, newRoom.Center);
-                PlaceDoor(newRoom.Center, previous.Center);
-            }
-
             rooms.Add(newRoom);
+
+            // Connect each newly placed room to the previous room.
+            // This guarantees all rooms become part of one connected layout.
+            if (rooms.Count > 1)
+            {
+                Room previous = rooms[rooms.Count - 2];
+                CarveCorridor(previous.Center, newRoom.Center);
+                PlaceDoorBetween(previous.Center, newRoom.Center);
+            }
         }
-    }
-
-    /// <summary>
-    /// Returns the center of the first room, which is a safe player spawn point.
-    /// </summary>
-    public Vector2Int GetPlayerSpawnPosition()
-    {
-        if (rooms.Count == 0)
-        {
-            GenerateDungeon();
-        }
-
-        if (rooms.Count == 0)
-        {
-            return new Vector2Int(1, 1);
-        }
-
-        return rooms[0].Center;
-    }
-
-    /// <summary>
-    /// Returns true when the tile can be entered by the player.
-    /// </summary>
-    public bool IsWalkable(Vector2Int position)
-    {
-        if (!IsInside(position) || Map == null)
-        {
-            return false;
-        }
-
-        TileType tileType = Map[position.x, position.y];
-        return tileType == TileType.Floor || tileType == TileType.Door;
-    }
-
-    /// <summary>
-    /// Returns the tile type at a given cell. Cells outside the map are treated as walls.
-    /// </summary>
-    public TileType GetTileType(Vector2Int position)
-    {
-        if (!IsInside(position) || Map == null)
-        {
-            return TileType.Wall;
-        }
-
-        return Map[position.x, position.y];
     }
 
     /// <summary>
@@ -214,12 +166,26 @@ public class DungeonGenerator2D : MonoBehaviour
     }
 
     /// <summary>
-    /// Places a single door where a corridor leaves a room.
+    /// Places doors where a corridor exits each room.
     /// </summary>
-    private void PlaceDoor(Vector2Int roomCenter, Vector2Int targetCenter)
+    private void PlaceDoorBetween(Vector2Int fromCenter, Vector2Int toCenter)
     {
-        Vector2Int direction = targetCenter - roomCenter;
+        Vector2Int fromDoor = FindRoomEdgeDoorPosition(fromCenter, toCenter);
+        Vector2Int toDoor = FindRoomEdgeDoorPosition(toCenter, fromCenter);
 
+        TrySetTile(fromDoor, TileType.Door);
+        TrySetTile(toDoor, TileType.Door);
+    }
+
+    /// <summary>
+    /// Finds a door position by stepping from room center toward a target until we hit wall.
+    /// The final floor tile before wall becomes a door.
+    /// </summary>
+    private Vector2Int FindRoomEdgeDoorPosition(Vector2Int origin, Vector2Int target)
+    {
+        Vector2Int direction = (target - origin);
+
+        // Use the dominant axis to pick a cardinal step direction.
         if (Mathf.Abs(direction.x) >= Mathf.Abs(direction.y))
         {
             direction = new Vector2Int(direction.x >= 0 ? 1 : -1, 0);
@@ -229,19 +195,17 @@ public class DungeonGenerator2D : MonoBehaviour
             direction = new Vector2Int(0, direction.y >= 0 ? 1 : -1);
         }
 
-        Vector2Int current = roomCenter;
-        Vector2Int previous = roomCenter;
+        Vector2Int current = origin;
+        Vector2Int lastFloor = origin;
 
+        // Walk until map boundary or wall is reached.
         while (IsInside(current) && Map[current.x, current.y] != TileType.Wall)
         {
-            previous = current;
+            lastFloor = current;
             current += direction;
         }
 
-        if (IsInside(previous) && Map[previous.x, previous.y] == TileType.Floor)
-        {
-            Map[previous.x, previous.y] = TileType.Door;
-        }
+        return lastFloor;
     }
 
     /// <summary>
@@ -278,10 +242,18 @@ public class DungeonGenerator2D : MonoBehaviour
         }
     }
 
-    private bool IsInside(Vector2Int point)
+    /// <summary>
+    /// Safely set a tile type at position if it's in bounds.
+    /// </summary>
+    private void TrySetTile(Vector2Int position, TileType type)
     {
-        return IsInside(point.x, point.y);
+        if (IsInside(position))
+        {
+            Map[position.x, position.y] = type;
+        }
     }
+
+    private bool IsInside(Vector2Int p) => IsInside(p.x, p.y);
 
     private bool IsInside(int x, int y)
     {
